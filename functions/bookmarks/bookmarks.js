@@ -1,8 +1,10 @@
 const { ApolloServer, gql } = require("apollo-server-lambda");
-
+const faunadb = require("faunadb"),
+  q = faunadb.query;
+// fnAEAR978UACB9RAqpaXiOcdV4JXmAOwOlyKzraS
 const typeDefs = gql`
   type Query {
-    allBook: [Bookmark!]
+    AllBook: [Bookmark!]
   }
   type Bookmark {
     id: ID!
@@ -11,15 +13,30 @@ const typeDefs = gql`
   }
 `;
 
-const authors = [
-  { id: 1, url: "www.google.com", desc: false },
-  { id: 2, url: "www.google.com", desc: true },
-  { id: 3, url: "www.google.com", desc: false },
-];
-
 const resolvers = {
   Query: {
-    allBook: () => authors,
+    AllBook: async (parent, args, context) => {
+      try {
+        var client = new faunadb.Client({
+          secret: "fnAEASDz3LACB7i68RUl3gGuS83pWEhsrMzvTO1i",
+        });
+        var result = await client.query(
+          q.Map(
+            q.Paginate(q.Match(q.Index("book"))),
+            q.Lambda((x) => q.Get(x))
+          )
+        );
+        return result.data.map((d) => {
+          return {
+            id: d.ts,
+            url: d.data.url,
+            desc: d.data.desc,
+          };
+        });
+      } catch (err) {
+        console.log("err", err);
+      }
+    },
   },
 };
 
@@ -28,6 +45,4 @@ const server = new ApolloServer({
   resolvers,
 });
 
-const handler = server.createHandler();
-
-module.exports = { handler };
+exports.handler = server.createHandler();
